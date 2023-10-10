@@ -1,0 +1,281 @@
+# Credit Risk Modeling in R, DataCamp course, 12.09.2023
+
+
+# Loading Packages 
+
+pacman::p_load(tidyverse, gmodels)
+
+# Loading data 
+
+loan_data <- read_rds("C:/Users/Renee/Desktop/DC Credit Risk Model/loan_data_ch1.rds")
+
+# Getting familiar with the data
+
+# basic structure 
+
+head(loan_data, 10)
+str(loan_data)
+
+
+# tables for loan statuses 
+CrossTable(loan_data$home_ownership, loan_data$loan_status, prop.r = T, prop.c = F, prop.t = F, prop.chisq = F)
+
+CrossTable(loan_data$grade, loan_data$loan_status, prop.r = TRUE, 
+           prop.c = FALSE, prop.t = FALSE, prop.chisq = FALSE)
+
+# visualizing data 
+
+hist(loan_data$int_rate, main = "Histogram of interest rate", xlab = "Interest rate")
+
+
+# visualization of annual income 
+n_breaks = sqrt(nrow(loan_data))     
+
+hist(loan_data$annual_inc, breaks = n_breaks, xlab = "Annual Income", main = "Histogram of Annual Income")
+
+# looking for outliers 
+
+plot(loan_data$annual_inc, ylab = "Annual Income")
+
+# calculating, using rule of thumb Q3 + 1.5 * IQR 
+
+outlier_cutoff <- quantile(loan_data$annual_inc, 0.75) + 1.5* IQR(loan_data$annual_inc)
+
+# Identifying outliers
+
+index_outliers_ROT <- which(loan_data$annual_inc > outlier_cutoff)
+
+loan_data_ROT <- loan_data[- index_outliers_ROT, ]
+
+
+# new visual on annual income
+
+hist(loan_data_ROT$annual_inc, sqrt(nrow(loan_data_ROT)), xlab = "Annual Income")
+
+#bivariate plot and other visualizations  
+
+plot(loan_data$emp_length, loan_data$annual_inc, xlab = "Employment Lenght", ylab = "Annual income")
+
+hist(loan_data$loan_amnt, breaks = 200, xlab = "Loan amount", main = "Histogram of the loan amount")
+
+# outliers age
+
+plot(loan_data$age, ylab = "Age")
+
+index_highage <- which(loan_data$age > 122)
+
+new_data <- loan_data[- index_highage, ]
+
+plot(loan_data$age, loan_data$annual_inc, xlab = "Age", ylab = "Annual income")
+
+
+# Missing inputs 
+
+# deleting rows 
+
+
+summary(loan_data)
+summary(loan_data$emp_length)
+summary(loan_data$int_rate)
+
+index_NA <- which(is.na(loan_data$emp_length))
+
+
+  
+loan_data_no_NA <- loan_data[c(index_NA), ]
+loan_data_delrow_na <- loan_data[-na_index, ]
+loan_data_omit_NA <- na.omit(loan_data)
+
+
+# deleting columns 
+
+loan_data_delete_employ <- loan_data
+loan_data_delete_employ$emp_length <- NULL
+
+
+#replace: median imputation 
+
+index_NA <- which(is.na(loan_data$emp_length))
+loan_data_replace <- loan_data
+loan_data_replace$emp_length[index_NA] <- median(loan_data$emp_length, na.rm = T)
+
+# keeping NA with bins 
+#emp_length
+
+loan_data$emp_cat <- rep(NA, length(loan_data$emp_length))
+
+loan_data$emp_cat[which(loan_data$emp_length <= 15)] <- "0-15"
+loan_data$emp_cat[which(loan_data$emp_length > 15 & loan_data$emp_length <= 30)] <- "15-30"
+loan_data$emp_cat[which(loan_data$emp_length > 30 & loan_data$emp_length <= 45)] <- "30-45"
+loan_data$emp_cat[which(loan_data$emp_length > 45)] <- "45+"
+loan_data$emp_cat[which(is.na(loan_data$emp_length))] <- "Missing"
+
+loan_data$emp_cat <- as.factor(loan_data$emp_cat)
+
+plot(loan_data$emp_cat)
+
+# int_rate
+
+loan_data$int_cat <- rep(NA, length(loan_data$int_rate))
+
+loan_data$int_cat[which(loan_data$int_rate <= 8)] <- "0-8"
+loan_data$int_cat[which(loan_data$int_rate > 8 & loan_data$int_rate <= 11)] <- "8-11"
+loan_data$int_cat[which(loan_data$int_rate > 11 & loan_data$int_rate <= 13.5)] <- "11-13.5"
+loan_data$int_cat[which(loan_data$int_rate > 13.5)] <- "13.5+"
+loan_data$int_cat[which(is.na(loan_data$int_rate))] <- "Missing"
+
+loan_data$int_cat <- as.factor(loan_data$int_cat)
+
+
+plot(loan_data$int_cat)
+
+## Data splitting and confusion matrices
+
+set.seed(567)
+# Store row numbers for training set: index_train
+index_train <- sample(1:nrow(loan_data), 2/3 * nrow(loan_data))
+
+# Create training set: training_set
+training_set <- loan_data[index_train, ]
+
+# Create test set: test_set
+test_set <- loan_data[- index_train, ]
+
+
+# confusion matrix 
+
+# conf_matrix <- table(test_set$loan_status, model_pred)
+# Compute classification accuracy
+# (6092 + 349) / nrow(test_set)
+# Compute sensitivity
+# 349 / 1037
+
+
+## Logistic regression 
+
+#checking values
+
+
+str(training_set)
+
+training_set$loan_status <- factor(training_set$loan_status)
+training_set_try <- training_set
+
+training_set$emp_length = NULL
+training_set$int_rate = NULL
+
+
+str(training_set)
+
+str(test_set)
+
+test_set$loan_status <- factor(test_set$loan_status)
+
+test_set$emp_length = NULL
+test_set$int_rate = NULL 
+
+str(test_set)
+
+
+# fitting a logistic model in R 
+
+log_model_age <- glm(loan_status ~ age, family = "binomial", data = training_set)
+log_model_age
+
+log_model_int_cat <- glm(loan_status ~ int_cat, family = "binomial", data = training_set)
+log_model_int_cat
+
+# Interpreting the odds for a categorical variable (looking at the exponents of the coefficients) 
+
+exp(log_model_age$coefficients)
+exp(log_model_int_cat$coefficients)
+
+table(loan_data$int_cat)
+
+
+# Multiple variables 
+
+log_model_multi <- glm(loan_status ~ age + int_cat + grade + loan_amnt + annual_inc, family= "binomial", data = training_set)
+
+summary(log_model_multi)
+
+
+# predicting the probability of default 
+
+log_model_small <- glm(loan_status ~age + home_ownership, family = "binomial", data = training_set)
+log_model_small
+
+
+# test set example 
+
+test_case <- as.data.frame(test_set[1, ])
+test_case
+
+predictions_test_case <- predict(log_model_small, newdata = test_case, type = "response")
+
+predictions_test_case
+
+range(predictions_test_case)
+
+# more variables
+
+predictions_all_small <- predict(log_model_small, newdata = test_set, type = "response")
+
+range(predictions_all_small)
+
+# all variables
+
+log_model_full <- glm(loan_status ~ . , family = "binomial", data = training_set)
+
+predictions_all_full <- predict(log_model_full, newdata = test_set, type  = "response")
+
+range(predictions_all_full)
+
+# Evaluating the logistic regression model result 
+
+# Make a binary predictions-vector using a cut-off of 15%
+
+pred_cutoff_15 <- ifelse(predictions_all_full > 0.15, 1, 0)
+pred_cutoff_20 <- ifelse(predictions_all_full > 0.2, 1, 0)
+
+# Construct a confusion matrix
+table(test_set$loan_status, pred_cutoff_15)
+
+table(test_set$loan_status, pred_cutoff_20)
+
+
+# Comparing link functions for a given cut-off
+
+# Fit the logit, probit and cloglog-link logistic regression models
+
+log_model_logit <- glm(loan_status ~ age + emp_cat + int_cat + loan_amnt,
+                       family = binomial(link = logit), data = training_set)
+log_model_probit <- glm(loan_status ~ age + emp_cat + int_cat + loan_amnt,
+                        family = binomial(link = probit), data = training_set)
+
+log_model_cloglog <-  glm(loan_status ~ age + emp_cat + int_cat + loan_amnt,
+                          family = binomial(link = cloglog), data = training_set)
+
+# Make predictions for all models using the test set
+predictions_logit <- predict(log_model_logit, newdata = test_set, type = "response")
+predictions_probit <- predict(log_model_probit, newdata = test_set, type = "response")
+predictions_cloglog <- predict(log_model_cloglog, newdata = test_set, type = "response")
+
+
+# Use a cut-off of 14% to make binary predictions-vectors
+cutoff <- 0.14
+class_pred_logit <- ifelse(predictions_logit > cutoff, 1, 0)
+class_pred_probit <- ifelse(predictions_probit > cutoff, 1, 0)
+class_pred_cloglog <- ifelse(predictions_cloglog > cutoff, 1, 0)
+
+# Make a confusion matrix for the three models
+tab_class_logit <- table(test_set$loan_status,class_pred_logit)
+tab_class_probit <- table(test_set$loan_status,class_pred_probit)
+tab_class_cloglog <- table(test_set$loan_status,class_pred_cloglog)
+
+# Compute the classification accuracy for all three models
+acc_logit <- sum(diag(tab_class_logit)) / nrow(test_set)
+acc_probit <- sum(diag(tab_class_probit)) / nrow(test_set)
+acc_cloglog <- sum(diag(tab_class_cloglog)) / nrow(test_set)
+
+
